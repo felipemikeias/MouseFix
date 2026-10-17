@@ -1,0 +1,17 @@
+# Build
+build/
+out/
+*.exe
+*.obj
+*.o
+*.res
+*.pdb
+*.ilk
+
+# IDEs
+.vs/
+.vscode/
+CMakeUserPresets.json
+
+# Binários do MouseFix original nunca entram no repositório
+MouseFixDll.dll

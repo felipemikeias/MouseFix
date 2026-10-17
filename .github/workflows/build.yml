@@ -1,0 +1,58 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        arch: [Win32, x64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configurar
+        run: cmake -B build -A ${{ matrix.arch }}
+
+      - name: Compilar
+        run: cmake --build build --config Release
+
+      - name: Testar
+        run: ctest --test-dir build -C Release --output-on-failure
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MouseFix-${{ matrix.arch }}
+          path: build/Release/MouseFix.exe
+
+  # A release tem um único MouseFix.exe de 32 bits, que roda em qualquer
+  # Windows (32 ou 64 bits, inclusive ARM), para ninguém precisar escolher.
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: MouseFix-Win32
+
+      - name: Preparar notas
+        run: |
+          cp .github/release-notes.md notes.md
+          printf '\n<sub>SHA-256 (MouseFix.exe): `%s`</sub>\n' \
+            "$(sha256sum MouseFix.exe | cut -d' ' -f1)" >> notes.md
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: MouseFix ${{ github.ref_name }}
+          files: MouseFix.exe
+          body_path: notes.md
