@@ -16,7 +16,7 @@ jobs:
       matrix:
         arch: [Win32, x64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configurar
         run: cmake -B build -A ${{ matrix.arch }}
@@ -27,7 +27,7 @@ jobs:
       - name: Testar
         run: ctest --test-dir build -C Release --output-on-failure
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: MouseFix-${{ matrix.arch }}
           path: build/Release/MouseFix.exe
@@ -39,9 +39,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: MouseFix-Win32
 
@@ -51,7 +51,7 @@ jobs:
           printf '\n<sub>SHA-256 (MouseFix.exe): `%s`</sub>\n' \
             "$(sha256sum MouseFix.exe | cut -d' ' -f1)" >> notes.md
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           name: MouseFix ${{ github.ref_name }}
           files: MouseFix.exe
