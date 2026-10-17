@@ -1,9 +1,12 @@
 /*
- * main.c - MouseFix: filtra cliques duplos fantasmas de mouses com defeito.
+ * main.c - MouseFix: filters phantom double clicks from faulty mice.
  *
- * Instala um hook WH_MOUSE_LL (que roda dentro deste processo; nenhuma DLL
- * é injetada em outros programas), passa cada evento de botão para o filtro
- * em debounce.c e mostra um ícone na bandeja para configurar e sair.
+ * Installs a WH_MOUSE_LL hook (which runs inside this process; no DLL is
+ * injected into other programs), passes every button event to the filter in
+ * debounce.c and shows a tray icon to configure and exit.
+ *
+ * Runs on Windows XP and later: only XP-era APIs are imported, and newer
+ * tray features are used only when the running Windows supports them.
  */
 #include <windows.h>
 #include <shellapi.h>
@@ -11,6 +14,7 @@
 
 #include "debounce.h"
 #include "settings.h"
+#include "strings.h"
 #include "../res/resource.h"
 
 #define APP_NAME L"MouseFix"
@@ -18,9 +22,9 @@
 #define SINGLE_INSTANCE_MUTEX L"Local\\MouseFix.SingleInstance"
 
 #define WM_TRAY (WM_APP + 1)
-#define WM_SHOW_HINT (WM_APP + 2)  /* enviada por uma segunda instância */
+#define WM_SHOW_HINT (WM_APP + 2)  /* sent by a second instance */
 #define TRAY_ID 1
-#define TIMER_BASE 100  /* timer de cada botão: TIMER_BASE + db_button */
+#define TIMER_BASE 100  /* per-button timer: TIMER_BASE + db_button */
 
 enum {
     CMD_ENABLED = 1,
@@ -34,14 +38,11 @@ enum {
 
 static const unsigned threshold_presets[] = {20, 30, 40, 50, 60, 80, 100, 150};
 
-static const wchar_t *const button_names[DB_BUTTON_COUNT] = {
-    L"Esquerdo", L"Direito", L"Meio (roda)", L"Lateral 1 (voltar)",
-    L"Lateral 2 (avançar)"};
-
 static HINSTANCE g_instance;
 static HWND g_window;
 static HHOOK g_hook;
 static UINT g_taskbar_created;
+static int g_vista_or_later;
 static struct settings g_settings;
 static struct db_state g_filter;
 static unsigned long g_blocked;
@@ -66,7 +67,7 @@ static void inject(enum db_button b, int is_down)
     SendInput(1, &in, sizeof in);
 }
 
-/* Traduz a mensagem do hook para botão/direção. Retorna 0 se não é botão. */
+/* Maps a hook message to button/direction. Returns 0 if it is not a button. */
 static int classify(WPARAM msg, const MSLLHOOKSTRUCT *info,
                     enum db_button *b, int *is_down)
 {
@@ -94,8 +95,9 @@ static LRESULT CALLBACK mouse_hook(int code, WPARAM msg, LPARAM lparam)
     int is_down;
 
     /*
-     * Eventos injetados (pelo MouseFix ou por outros programas, como acesso
-     * remoto e automação) não vêm do botão físico e nunca são filtrados.
+     * Injected events (from MouseFix itself or from other programs, such as
+     * remote desktop and automation tools) do not come from the physical
+     * button and are never filtered.
      */
     if (code != HC_ACTION || !g_settings.enabled ||
         (info->flags & LLMHF_INJECTED) || !classify(msg, info, &b, &is_down))
@@ -119,7 +121,7 @@ static LRESULT CALLBACK mouse_hook(int code, WPARAM msg, LPARAM lparam)
     return CallNextHookEx(g_hook, code, msg, lparam);
 }
 
-/* Solta qualquer botão segurado pelo modo "seguro para arrastar". */
+/* Releases any button held back by the drag-safe mode. */
 static void release_pending(void)
 {
     unsigned mask = db_flush(&g_filter);
@@ -140,79 +142,87 @@ static void apply_settings(void)
     settings_save(&g_settings);
 }
 
+static HICON load_icon(int id, int size_metric_x, int size_metric_y)
+{
+    return (HICON)LoadImageW(g_instance, MAKEINTRESOURCEW(id), IMAGE_ICON,
+                             GetSystemMetrics(size_metric_x),
+                             GetSystemMetrics(size_metric_y), LR_SHARED);
+}
+
+/*
+ * Windows XP rejects the Vista-sized NOTIFYICONDATAW, so the structure size
+ * is chosen at run time.
+ */
+static void init_tray_data(NOTIFYICONDATAW *nid)
+{
+    ZeroMemory(nid, sizeof *nid);
+    nid->cbSize = g_vista_or_later ? sizeof *nid : NOTIFYICONDATAW_V3_SIZE;
+    nid->hWnd = g_window;
+    nid->uID = TRAY_ID;
+}
+
 static void update_tray(DWORD action)
 {
     NOTIFYICONDATAW nid;
-    int cx = GetSystemMetrics(SM_CXSMICON), cy = GetSystemMetrics(SM_CYSMICON);
 
-    ZeroMemory(&nid, sizeof nid);
-    nid.cbSize = sizeof nid;
-    nid.hWnd = g_window;
-    nid.uID = TRAY_ID;
+    init_tray_data(&nid);
     nid.uFlags = NIF_ICON | NIF_TIP | NIF_MESSAGE;
     nid.uCallbackMessage = WM_TRAY;
-    nid.hIcon = (HICON)LoadImageW(
-        g_instance,
-        MAKEINTRESOURCEW(g_settings.enabled ? IDI_APP : IDI_PAUSED),
-        IMAGE_ICON, cx, cy, LR_SHARED);
-    wsprintfW(nid.szTip, g_settings.enabled ? L"MouseFix: ativo (%u ms)"
-                                            : L"MouseFix: pausado",
+    nid.hIcon = load_icon(g_settings.enabled ? IDI_APP : IDI_PAUSED,
+                          SM_CXSMICON, SM_CYSMICON);
+    wsprintfW(nid.szTip, tr(g_settings.enabled ? STR_TIP_ACTIVE : STR_TIP_PAUSED),
               g_settings.threshold_ms);
     Shell_NotifyIconW(action, &nid);
 }
 
-/* Notificação dizendo onde o MouseFix está, para quem não vê janela nenhuma. */
+/* Notification telling where MouseFix is, since it has no window. */
 static void show_hint(void)
 {
     NOTIFYICONDATAW nid;
 
-    ZeroMemory(&nid, sizeof nid);
-    nid.cbSize = sizeof nid;
-    nid.hWnd = g_window;
-    nid.uID = TRAY_ID;
+    init_tray_data(&nid);
     nid.uFlags = NIF_INFO;
-    nid.dwInfoFlags = NIIF_USER | NIIF_LARGE_ICON;
-    nid.hBalloonIcon = (HICON)LoadImageW(
-        g_instance, MAKEINTRESOURCEW(IDI_APP), IMAGE_ICON,
-        GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_SHARED);
-    lstrcpyW(nid.szInfoTitle, g_settings.enabled
-                                  ? L"MouseFix está funcionando"
-                                  : L"MouseFix está pausado");
-    lstrcpyW(nid.szInfo,
-             L"Clique no ícone do mouse perto do relógio para configurar ou "
-             L"sair. Se ele não aparecer, clique na setinha ^ ao lado do "
-             L"relógio.");
+    if (g_vista_or_later) {
+        nid.dwInfoFlags = NIIF_USER | NIIF_LARGE_ICON;
+        nid.hBalloonIcon = load_icon(IDI_APP, SM_CXICON, SM_CYICON);
+    } else {
+        nid.dwInfoFlags = NIIF_INFO;
+    }
+    lstrcpynW(nid.szInfoTitle,
+              tr(g_settings.enabled ? STR_HINT_TITLE_ACTIVE
+                                    : STR_HINT_TITLE_PAUSED),
+              sizeof nid.szInfoTitle / sizeof *nid.szInfoTitle);
+    lstrcpynW(nid.szInfo, tr(STR_HINT_TEXT),
+              sizeof nid.szInfo / sizeof *nid.szInfo);
     Shell_NotifyIconW(NIM_MODIFY, &nid);
 }
 
 static void first_run(void)
 {
-    if (MessageBoxW(NULL,
-                    L"O MouseFix está funcionando e já está corrigindo os "
-                    L"cliques duplos.\n\n"
-                    L"Deseja que ele abra sozinho sempre que o Windows "
-                    L"iniciar? (recomendado)\n\n"
-                    L"Você pode mudar isso depois no menu do ícone do mouse, "
-                    L"perto do relógio.",
-                    APP_NAME, MB_YESNO | MB_ICONQUESTION) == IDYES)
+    if (MessageBoxW(NULL, tr(STR_FIRST_RUN), APP_NAME,
+                    MB_YESNO | MB_ICONQUESTION | MB_SETFOREGROUND) == IDYES)
         autostart_set(1);
     settings_save(&g_settings);
 }
 
 static void show_menu(void)
 {
+    static const enum str_id button_names[DB_BUTTON_COUNT] = {
+        STR_BUTTON_LEFT, STR_BUTTON_RIGHT, STR_BUTTON_MIDDLE, STR_BUTTON_X1,
+        STR_BUTTON_X2};
     HMENU menu = CreatePopupMenu();
     HMENU thresholds = CreatePopupMenu();
     HMENU buttons = CreatePopupMenu();
     HMENU modes = CreatePopupMenu();
-    wchar_t text[64];
+    wchar_t text[128];
     POINT pt;
     UINT i;
 
     for (i = 0; i < sizeof threshold_presets / sizeof *threshold_presets; i++) {
         unsigned ms = threshold_presets[i];
-        wsprintfW(text, ms == MOUSEFIX_DEFAULT_THRESHOLD_MS ? L"%u ms (padrão)"
-                                                            : L"%u ms",
+        wsprintfW(text, ms == MOUSEFIX_DEFAULT_THRESHOLD_MS
+                            ? tr(STR_THRESHOLD_DEFAULT)
+                            : L"%u ms",
                   ms);
         AppendMenuW(thresholds,
                     MF_STRING | (ms == g_settings.threshold_ms ? MF_CHECKED : 0),
@@ -223,34 +233,34 @@ static void show_menu(void)
         AppendMenuW(buttons,
                     MF_STRING |
                         (g_settings.buttons & (1u << i) ? MF_CHECKED : 0),
-                    CMD_BUTTON_BASE + i, button_names[i]);
+                    CMD_BUTTON_BASE + i, tr(button_names[i]));
 
     AppendMenuW(modes,
                 MF_STRING | (g_settings.mode == DB_MODE_BLOCK_PRESS ? MF_CHECKED : 0),
-                CMD_MODE_BLOCK_PRESS, L"Bloquear clique repetido (padrão)");
+                CMD_MODE_BLOCK_PRESS, tr(STR_MODE_BLOCK_PRESS));
     AppendMenuW(modes,
                 MF_STRING | (g_settings.mode == DB_MODE_HOLD_RELEASE ? MF_CHECKED : 0),
-                CMD_MODE_HOLD_RELEASE, L"Seguro para arrastar (atrasa o soltar)");
+                CMD_MODE_HOLD_RELEASE, tr(STR_MODE_HOLD_RELEASE));
 
-    wsprintfW(text, L"Cliques fantasmas bloqueados: %lu", g_blocked);
+    wsprintfW(text, tr(STR_BLOCKED_COUNT), g_blocked);
     AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, text);
     AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
     AppendMenuW(menu, MF_STRING | (g_settings.enabled ? MF_CHECKED : 0),
-                CMD_ENABLED, L"Ativado");
-    AppendMenuW(menu, MF_POPUP, (UINT_PTR)thresholds, L"Intervalo");
-    AppendMenuW(menu, MF_POPUP, (UINT_PTR)buttons, L"Botões");
-    AppendMenuW(menu, MF_POPUP, (UINT_PTR)modes, L"Modo");
+                CMD_ENABLED, tr(STR_ENABLED));
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)thresholds, tr(STR_THRESHOLD));
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)buttons, tr(STR_BUTTONS));
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)modes, tr(STR_MODE));
     AppendMenuW(menu, MF_STRING | (autostart_get() ? MF_CHECKED : 0),
-                CMD_AUTOSTART, L"Iniciar com o Windows");
+                CMD_AUTOSTART, tr(STR_AUTOSTART));
     AppendMenuW(menu, MF_SEPARATOR, 0, NULL);
-    AppendMenuW(menu, MF_STRING, CMD_EXIT, L"Sair");
+    AppendMenuW(menu, MF_STRING, CMD_EXIT, tr(STR_EXIT));
 
     GetCursorPos(&pt);
-    /* Necessário para o menu fechar ao clicar fora dele. */
+    /* Required so the menu closes when clicking outside of it. */
     SetForegroundWindow(g_window);
     TrackPopupMenu(menu, TPM_RIGHTBUTTON, pt.x, pt.y, 0, g_window, NULL);
     PostMessageW(g_window, WM_NULL, 0, 0);
-    DestroyMenu(menu);  /* destrói os submenus junto */
+    DestroyMenu(menu);  /* also destroys the submenus */
 }
 
 static void on_command(UINT id)
@@ -313,7 +323,7 @@ static LRESULT CALLBACK window_proc(HWND hwnd, UINT msg, WPARAM wparam,
         return 0;
     }
     if (g_taskbar_created && msg == g_taskbar_created) {
-        /* O Explorer reiniciou: o ícone da bandeja precisa ser recriado. */
+        /* Explorer restarted: the tray icon has to be added again. */
         update_tray(NIM_ADD);
         return 0;
     }
@@ -330,15 +340,20 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev, LPSTR cmdline, int show)
     (void)cmdline;
     (void)show;
     g_instance = instance;
+    strings_init();
 
     mutex = CreateMutexW(NULL, TRUE, SINGLE_INSTANCE_MUTEX);
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
-        /* Já está rodando: a instância existente mostra onde está o ícone. */
+        /* Already running: the existing instance shows where its icon is. */
         HWND running = FindWindowW(WINDOW_CLASS, NULL);
         if (running)
             PostMessageW(running, WM_SHOW_HINT, 0, 0);
         return 0;
     }
+
+    /* GetTickCount64 exists from Vista on; checked without importing it. */
+    g_vista_or_later =
+        GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "GetTickCount64") != NULL;
 
     settings_load(&g_settings);
     db_init(&g_filter, g_settings.threshold_ms, g_settings.mode,
@@ -351,7 +366,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev, LPSTR cmdline, int show)
     if (!RegisterClassW(&wc))
         return 1;
 
-    /* Janela nunca exibida; existe para receber a bandeja e os timers. */
+    /* Never shown; exists to receive tray messages and timers. */
     g_window = CreateWindowExW(WS_EX_TOOLWINDOW, WINDOW_CLASS, APP_NAME, 0, 0,
                                0, 0, 0, NULL, NULL, instance, NULL);
     if (!g_window)
@@ -361,15 +376,14 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prev, LPSTR cmdline, int show)
 
     g_hook = SetWindowsHookExW(WH_MOUSE_LL, mouse_hook, instance, 0);
     if (!g_hook) {
-        MessageBoxW(NULL, L"Não foi possível instalar o hook do mouse.",
-                    APP_NAME, MB_ICONERROR);
+        MessageBoxW(NULL, tr(STR_HOOK_FAILED), APP_NAME, MB_ICONERROR);
         DestroyWindow(g_window);
         return 1;
     }
 
     update_tray(NIM_ADD);
 
-    /* Atualiza o caminho caso o .exe tenha sido movido de pasta. */
+    /* Refreshes the path in case the .exe was moved to another folder. */
     if (autostart_get())
         autostart_set(1);
 

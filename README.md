@@ -1,116 +1,136 @@
-<p align="center"><img src="docs/icone.png" width="96" alt=""></p>
+<p align="center"><img src="docs/icon.png" width="96" alt=""></p>
 
 <h1 align="center">MouseFix</h1>
 
 <p align="center">
-  <a href="../../releases/latest"><b>⬇ Baixar MouseFix.exe</b></a>
+  <a href="../../releases/latest"><b>⬇ Download MouseFix.exe</b></a>
 </p>
 
-Corrige o **clique duplo fantasma** de mouses com o botão gasto no Windows:
-quando um único clique vira dois, ou quando um arraste se solta sozinho no
-meio do caminho.
+Stops the **phantom double click** of worn-out mice on Windows: one click
+turning into two, or a drag that lets go on its own halfway through.
 
-É um substituto open-source do antigo `MouseFix.exe` + `MouseFixDll.dll`
-(2004), escrito do zero depois de analisar o que o original faz. Veja
-[docs/analise-do-original.md](docs/analise-do-original.md).
+An open-source replacement for the old `MouseFix.exe` + `MouseFixDll.dll`
+(2004), written from scratch after analyzing what the original does. See
+[docs/original-analysis.md](docs/original-analysis.md).
 
-- Um único `.exe` pequeno, sem DLL, sem instalador, sem dependências.
-- Não pede administrador e não acessa a internet.
-- Fica perto do relógio, com configuração por menu.
-- Código pequeno e auditável, com testes.
+- A single small `.exe`: no DLL, no installer, no dependencies.
+- Made for Windows XP, Vista, 7, 8, 8.1, 10 and 11, 32 or 64-bit.
+- No administrator rights, no internet access.
+- Lives next to the clock, configured from a menu.
+- Interface in English or Portuguese, following the Windows language.
+- Small, auditable code with tests.
 
-## Como usar
+## How to use
 
-1. Baixe o **MouseFix.exe** na [página da versão mais recente](../../releases/latest)
-   (em *Assets*).
-2. Dê dois cliques nele. Não precisa instalar nada.
-3. Se aparecer **"O Windows protegeu o computador"**, clique em
-   **Mais informações** e depois em **Executar assim mesmo**. O aviso aparece
-   porque o programa é novo e não tem uma assinatura digital paga, não porque
-   tenha algo errado.
-4. Na primeira vez, ele pergunta se deve abrir junto com o Windows. Responda
-   **Sim** para não precisar abrir de novo depois de reiniciar.
+1. Download **MouseFix.exe** from the [latest release](../../releases/latest)
+   (under *Assets*).
+2. Double-click it. Nothing to install.
+3. If you see **"Windows protected your PC"**, click **More info** and then
+   **Run anyway**. The warning appears because the program is new and has no
+   paid digital signature, not because something is wrong.
+4. The first time, it asks whether it should start with Windows. Answer
+   **Yes** so you don't have to open it again after restarting.
 
-Pronto. Um ícone de mouse aparece perto do relógio e os cliques fantasmas
-param. Se o ícone não aparecer, clique na setinha **^** ao lado do relógio.
-Abrir o `MouseFix.exe` de novo só mostra um aviso de onde ele está.
+Done. A mouse icon appears next to the clock and the phantom clicks stop. If
+you can't see the icon, click the **^** arrow next to the clock. Opening
+`MouseFix.exe` again just shows a reminder of where it is.
 
-**Dica:** guarde o `MouseFix.exe` numa pasta fixa (por exemplo, Documentos)
-antes de ativar o início automático. Se movê-lo depois, basta abri-lo uma vez
-no lugar novo.
+**Tip:** keep `MouseFix.exe` in a fixed folder (Documents, for example)
+before turning on start with Windows. If you move it later, open it once from
+the new place.
 
 ### Menu
 
-Clique no ícone do mouse perto do relógio:
+Click the mouse icon next to the clock:
 
-| Item do menu                 | O que faz                                                   |
-| ---------------------------- | ----------------------------------------------------------- |
-| Cliques fantasmas bloqueados | Contador desde que o programa abriu                         |
-| Ativado                      | Liga/desliga o filtro sem fechar o programa                 |
-| Intervalo                    | Tempo mínimo entre soltar e apertar de novo (padrão: 40 ms) |
-| Botões                       | Quais botões filtrar (padrão: só o esquerdo)                |
-| Modo                         | Estratégia de filtragem (veja abaixo)                       |
-| Iniciar com o Windows        | Abre o MouseFix sozinho ao ligar o computador               |
-| Sair                         | Remove o filtro e fecha                                     |
+| Menu item              | What it does                                                       |
+| ---------------------- | ------------------------------------------------------------------ |
+| Phantom clicks blocked | Counter since the program was opened                               |
+| Enabled                | Turns the filter on/off without closing the program                |
+| Interval               | Minimum time between releasing and pressing again (default: 40 ms) |
+| Buttons                | Which buttons to filter (default: left only)                       |
+| Mode                   | Filtering strategy (see below)                                     |
+| Start with Windows     | Opens MouseFix automatically when the computer starts              |
+| Exit                   | Removes the filter and closes                                      |
 
-### Desinstalar
+### Uninstall
 
-1. No menu do ícone, desmarque **Iniciar com o Windows** e clique em **Sair**.
-2. Apague o `MouseFix.exe`.
+1. In the icon menu, uncheck **Start with Windows** and click **Exit**.
+2. Delete `MouseFix.exe`.
 
-As configurações ficam em `HKEY_CURRENT_USER\Software\MouseFix`, que pode ser
-apagada pelo Editor do Registro se quiser remover tudo. O início automático
-usa a entrada `MouseFix` em
+Settings live in `HKEY_CURRENT_USER\Software\MouseFix`, which you can delete
+with the Registry Editor to remove everything. Start with Windows uses the
+`MouseFix` value in
 `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`.
 
-### Escolhendo o intervalo
+### Choosing the interval
 
-Um clique fantasma costuma chegar entre 5 e 30 ms depois do "soltar"; um
-duplo clique humano raramente tem menos de 80 ms entre um clique e outro.
-Comece com 40 ms. Se ainda escapar clique duplo, aumente; se o duplo clique
-intencional começar a falhar, diminua.
+A phantom click usually arrives 5 to 30 ms after the release; a human double
+click rarely has less than 80 ms between clicks. Start with 40 ms. If double
+clicks still get through, increase it; if intentional double clicks start
+failing, decrease it.
 
-### Modos
+### Modes
 
-**Bloquear clique repetido (padrão)** — mesmo critério do programa original:
-um "apertar" que chega antes do intervalo é descartado, junto com o "soltar"
-correspondente. Não acrescenta atraso nenhum. Resolve o clique duplo, mas se
-o defeito acontecer no meio de um arraste, o arraste ainda se solta.
+**Block repeated click (default)**: the same rule as the original program. A
+press that arrives before the interval is dropped, together with its release.
+Adds no delay at all. Fixes the double click, but if the fault happens in the
+middle of a drag, the drag still lets go.
 
-**Seguro para arrastar** — todo "soltar" é segurado pelo tempo do intervalo.
-Se o botão voltar a ser apertado nesse tempo, os dois eventos são descartados
-e o programa nunca percebe que o botão foi solto. Resolve também o arraste que
-se solta sozinho, ao custo de o "soltar" chegar alguns milissegundos depois.
+**Drag-safe**: every release is held back for the interval. If the button is
+pressed again within that time, both events are dropped and programs never
+notice the button was released. Also fixes drags that let go on their own, at
+the cost of releases arriving a few milliseconds later.
 
-## Como funciona
+## How it works
 
-O MouseFix instala um hook de mouse de baixo nível (`WH_MOUSE_LL`). O Windows
-chama esse hook para cada evento do mouse antes de entregá-lo a qualquer
-programa, e o hook decide se o evento segue ou é descartado. Esse tipo de hook
-roda dentro do próprio processo do MouseFix: nada é injetado em outros
-programas.
+MouseFix installs a low-level mouse hook (`WH_MOUSE_LL`). Windows calls this
+hook for every mouse event before delivering it to any program, and the hook
+decides whether the event goes through or is dropped. This kind of hook runs
+inside MouseFix's own process: nothing is injected into other programs.
 
 ```
-mouse ──▶ Windows ──▶ hook do MouseFix ──▶ programas
+mouse ──▶ Windows ──▶ MouseFix hook ──▶ programs
                          │
-                         └─ "apertar" cedo demais depois de um "soltar"? descarta
+                         └─ press too soon after a release? drop it
 ```
 
-Eventos gerados por software (acesso remoto, automação, ferramentas de
-acessibilidade) são marcados pelo Windows como injetados e nunca são
-filtrados.
+Events generated by software (remote desktop, automation, accessibility
+tools) are flagged by Windows as injected and are never filtered.
 
-## Limitações
+## Compatibility
 
-- Programas executados **como administrador** não passam pelo hook de um
-  programa comum (isolamento de privilégios do Windows). Se o problema
-  aparecer só nesses programas, execute o MouseFix como administrador também.
-- É um paliativo: o defeito é físico. A solução definitiva é trocar o
-  micro-switch do botão ou o mouse.
+The release `.exe` is a 32-bit build made with MinGW-w64 against
+`msvcrt.dll`, which every Windows since XP ships, so the same file runs on
+32-bit, 64-bit and ARM editions. It imports only functions that exist on
+Windows XP; newer features (the large icon in notifications) are used only
+when the running Windows supports them. CI checks the PE header and the
+imported DLLs on every build.
 
-## Compilar
+## Limitations
 
-Requisitos: CMake 3.16+ e Visual Studio 2019+ (ou MinGW-w64).
+- Programs running **as administrator** do not go through the hook of a
+  regular program (Windows privilege isolation). If the problem only shows up
+  in those programs, run MouseFix as administrator too.
+- It is a workaround: the fault is physical. The real fix is replacing the
+  button's micro switch or the mouse.
+
+## Building
+
+Release build (Windows XP and later), cross-compiled with MinGW-w64, for
+example on Debian/Ubuntu after
+`apt install gcc-mingw-w64-i686-win32 binutils-mingw-w64-i686`:
+
+```bash
+cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-i686.cmake -DCMAKE_BUILD_TYPE=Release
+```
+
+```bash
+cmake --build build
+```
+
+With Visual Studio 2019 or later on Windows (the result needs Windows 7 or
+later):
 
 ```bash
 cmake -B build
@@ -120,16 +140,10 @@ cmake -B build
 cmake --build build --config Release
 ```
 
-O executável fica em `build/Release/MouseFix.exe` (Visual Studio) ou
-`build/MouseFix.exe` (MinGW).
+### Tests
 
-Para gerar um `.exe` de 32 bits com o Visual Studio, use
-`cmake -B build -A Win32`.
-
-### Testes
-
-A lógica do filtro (`src/debounce.c`) não depende do Windows e pode ser
-testada em qualquer sistema:
+The filter logic (`src/debounce.c`) does not depend on Windows and can be
+tested on any system:
 
 ```bash
 cc -std=c99 -Wall -Isrc src/debounce.c tests/test_debounce.c -o test_debounce
@@ -139,19 +153,21 @@ cc -std=c99 -Wall -Isrc src/debounce.c tests/test_debounce.c -o test_debounce
 ./test_debounce
 ```
 
-No Windows, `ctest --test-dir build -C Release` faz o mesmo.
+With Visual Studio, `ctest --test-dir build -C Release` does the same.
 
-## Estrutura
+## Layout
 
 ```
-src/debounce.c  filtro (puro, sem Win32) — toda a decisão de bloquear
-src/main.c      hook do mouse, ícone da bandeja e menu
-src/settings.c  configurações no registro e início automático
-res/            ícones, manifesto e versão do executável
-tests/          testes do filtro
-docs/           análise do programa original
+src/debounce.c  filter (pure, no Win32): every decision to block
+src/main.c      mouse hook, tray icon and menu
+src/settings.c  registry settings and start with Windows
+src/strings.c   interface text (English and Portuguese)
+res/            icons, manifest and version info
+cmake/          MinGW toolchain for the release build
+tests/          filter tests
+docs/           analysis of the original program
 ```
 
-## Licença
+## License
 
-[MIT](LICENSE).
+[MIT](LICENSE)

@@ -9,7 +9,7 @@ Stops the **phantom double click** of worn-out mice on Windows: one click turnin
 
 To configure or close it, click the mouse icon next to the clock (if you can't see it, click the **^** arrow).
 
-Made for Windows 10 and 11 (32 or 64-bit). The program's interface is in Portuguese.
+Works on Windows XP, Vista, 7, 8, 8.1, 10 and 11 (32 or 64-bit). The interface follows the Windows language (English or Portuguese).
 
 ---
 
@@ -24,4 +24,4 @@ Corrige o **clique duplo fantasma** de mouses com o botão gasto no Windows: qua
 
 Para configurar ou fechar, clique no ícone do mouse perto do relógio (se não aparecer, clique na setinha **^**).
 
-Feito para Windows 10 e 11 (32 ou 64 bits).
+Funciona no Windows XP, Vista, 7, 8, 8.1, 10 e 11 (32 ou 64 bits). A interface segue o idioma do Windows (inglês ou português).

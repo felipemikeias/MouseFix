@@ -97,7 +97,7 @@ void autostart_set(int on)
     } else {
         len = GetModuleFileNameW(NULL, path, MAX_PATH);
         if (len > 0 && len < MAX_PATH) {
-            /* Entre aspas: o caminho pode conter espaços. */
+            /* Quoted: the path may contain spaces. */
             wsprintfW(command, L"\"%s\" " AUTOSTART_ARG, path);
             RegSetValueExW(key, RUN_VALUE, 0, REG_SZ, (const BYTE *)command,
                            (DWORD)((lstrlenW(command) + 1) * sizeof(wchar_t)));

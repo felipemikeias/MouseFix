@@ -13,5 +13,5 @@ out/
 .vscode/
 CMakeUserPresets.json
 
-# Binários do MouseFix original nunca entram no repositório
+# Binaries of the original MouseFix never go into the repository
 MouseFixDll.dll

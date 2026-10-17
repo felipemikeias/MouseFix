@@ -46,7 +46,7 @@ static struct db_result hold_release(struct db_state *s,
     struct db_result r = {0};
 
     if (!is_down) {
-        /* Segura o "soltar"; o timer o libera se nada acontecer. */
+        /* Hold the release back; the timer lets it go if nothing happens. */
         st->last_up = time;
         st->has_up = 1;
         st->pending_up = 1;
@@ -63,8 +63,8 @@ static struct db_result hold_release(struct db_state *s,
     r.cancel_timer = 1;
     if (!within_threshold(s, st, time)) {
         /*
-         * O timer atrasou e um clique legítimo chegou antes dele. Reproduz
-         * a ordem real: o "soltar" segurado e depois este "apertar".
+         * The timer ran late and a legitimate click arrived first. Replay
+         * the real order: the held-back release, then this press.
          */
         r.inject_up = 1;
         r.inject_down = 1;

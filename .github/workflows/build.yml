@@ -10,42 +10,67 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    runs-on: windows-latest
-    strategy:
-      matrix:
-        arch: [Win32, x64]
+  # Release build: 32-bit MinGW against msvcrt.dll, runs on Windows XP and later.
+  mingw:
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
-      - name: Configurar
-        run: cmake -B build -A ${{ matrix.arch }}
+      - name: Install MinGW-w64
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-mingw-w64-i686-win32 binutils-mingw-w64-i686
 
-      - name: Compilar
-        run: cmake --build build --config Release
+      - name: Test filter
+        run: |
+          cc -std=c99 -Wall -Wextra -pedantic -Werror -Isrc src/debounce.c tests/test_debounce.c -o test_debounce
+          ./test_debounce
 
-      - name: Testar
-        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-i686.cmake -DCMAKE_BUILD_TYPE=Release -DMOUSEFIX_TESTS=OFF
+          cmake --build build
+
+      - name: Check Windows XP compatibility
+        run: |
+          headers=$(i686-w64-mingw32-objdump -p build/MouseFix.exe)
+          echo "$headers" | grep -E "MajorOSystemVersion\s+5$"
+          echo "$headers" | grep -E "MajorSubsystemVersion\s+5$"
+          dlls=$(echo "$headers" | awk '/DLL Name:/ {print toupper($3)}' | sort -u | tr '\n' ' ')
+          echo "Imported DLLs: $dlls"
+          [ "$dlls" = "ADVAPI32.DLL KERNEL32.DLL MSVCRT.DLL SHELL32.DLL USER32.DLL " ]
 
       - uses: actions/upload-artifact@v7
         with:
-          name: MouseFix-${{ matrix.arch }}
-          path: build/Release/MouseFix.exe
+          name: MouseFix
+          path: build/MouseFix.exe
 
-  # A release tem um único MouseFix.exe de 32 bits, que roda em qualquer
-  # Windows (32 ou 64 bits, inclusive ARM), para ninguém precisar escolher.
+  # Keeps the Visual Studio build working.
+  msvc:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build
+        run: |
+          cmake -B build -A x64
+          cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [mingw, msvc]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
 
       - uses: actions/download-artifact@v8
         with:
-          name: MouseFix-Win32
+          name: MouseFix
 
-      - name: Preparar notas
+      - name: Prepare notes
         run: |
           cp .github/release-notes.md notes.md
           printf '\n<sub>SHA-256 (MouseFix.exe): `%s`</sub>\n' \

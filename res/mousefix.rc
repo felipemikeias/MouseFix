@@ -7,27 +7,27 @@ IDI_PAUSED  ICON "mousefix-paused.ico"
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST "mousefix.manifest"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     1,0,0,0
-PRODUCTVERSION  1,0,0,0
+FILEVERSION     1,1,0,0
+PRODUCTVERSION  1,1,0,0
 FILEOS          VOS_NT_WINDOWS32
 FILETYPE        VFT_APP
 BEGIN
     BLOCK "StringFileInfo"
     BEGIN
-        BLOCK "041604B0"
+        BLOCK "040904B0"
         BEGIN
             VALUE "CompanyName", "Felipe Mikeias"
-            VALUE "FileDescription", "MouseFix - filtro de clique duplo"
-            VALUE "FileVersion", "1.0.0"
+            VALUE "FileDescription", "MouseFix - phantom double-click filter"
+            VALUE "FileVersion", "1.1.0"
             VALUE "InternalName", "MouseFix"
-            VALUE "LegalCopyright", "Copyright (C) 2026 Felipe Mikeias - Licenca MIT"
+            VALUE "LegalCopyright", "Copyright (C) 2026 Felipe Mikeias - MIT License"
             VALUE "OriginalFilename", "MouseFix.exe"
             VALUE "ProductName", "MouseFix"
-            VALUE "ProductVersion", "1.0.0"
+            VALUE "ProductVersion", "1.1.0"
         END
     END
     BLOCK "VarFileInfo"
     BEGIN
-        VALUE "Translation", 0x0416, 1200
+        VALUE "Translation", 0x0409, 1200
     END
 END

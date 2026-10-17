@@ -1,88 +1,107 @@
 # CLAUDE.md
 
-Orientações para agentes trabalhando neste repositório.
+Guidance for agents working in this repository.
 
-## O que é
+## What it is
 
-Utilitário Win32 em C que filtra o clique duplo fantasma de mouses com defeito
-por meio de um hook `WH_MOUSE_LL`. É uma reimplementação open-source do antigo
-MouseFix (2004); a análise do original está em `docs/analise-do-original.md`.
+A Win32 utility in C that filters the phantom double click of faulty mice
+through a `WH_MOUSE_LL` hook. It is an open-source reimplementation of the old
+MouseFix (2004); the analysis of the original is in
+`docs/original-analysis.md`.
 
-## Estrutura e responsabilidades
+## Layout and responsibilities
 
-- `src/debounce.c/.h`: toda a lógica de decisão (bloquear, segurar, injetar).
-  **Não pode incluir `windows.h`** nem chamar o sistema: recebe eventos e
-  devolve ações em `struct db_result`. Qualquer mudança de comportamento do
-  filtro começa aqui, com teste em `tests/test_debounce.c`.
-- `src/main.c`: hook, ícone da bandeja, menu, timers e `SendInput`. Só traduz
-  eventos para o filtro e executa o que ele devolve.
-- `src/settings.c/.h`: leitura/gravação em `HKCU\Software\MouseFix` e entrada
-  `MouseFix` em `HKCU\...\CurrentVersion\Run`.
-- `res/`: ícones, manifesto (`asInvoker`, DPI) e `VERSIONINFO`. A versão
-  aparece em `CMakeLists.txt`, `res/mousefix.rc` e `res/mousefix.manifest`;
-  mude as três juntas. `mousefix.ico` é o ícone do `.exe` e da bandeja (tem
-  versões simplificadas de 16 a 32 px); `docs/icone.png` é a cópia de 128 px
-  usada no README.
+- `src/debounce.c/.h`: all decision logic (block, hold back, inject).
+  **Must not include `windows.h`** or call the system: it receives events and
+  returns actions in `struct db_result`. Any change to filter behavior starts
+  here, with a test in `tests/test_debounce.c`.
+- `src/main.c`: hook, tray icon, menu, timers and `SendInput`. It only
+  translates events for the filter and carries out what it returns.
+- `src/settings.c/.h`: reads/writes `HKCU\Software\MouseFix` and the
+  `MouseFix` value in `HKCU\...\CurrentVersion\Run`.
+- `src/strings.c/.h`: every user-facing string, English (default) and
+  Portuguese (picked when the Windows display language is Portuguese). New
+  text goes into both tables, in the same order as `enum str_id`.
+- `res/`: icons, manifest (`asInvoker`, DPI) and `VERSIONINFO`. The version
+  appears in `CMakeLists.txt`, `res/mousefix.rc` and `res/mousefix.manifest`;
+  change all three together. `mousefix.ico` is the icon of the `.exe` and the
+  tray; its entries below 256 px must be BMP (Windows XP cannot read PNG icon
+  entries). `docs/icon.png` is the 128 px copy used in the README.
+- `cmake/mingw-i686.cmake`: toolchain for the release build.
 
-## Comandos
+## Commands
 
-Testes do filtro (funcionam em Linux/macOS/Windows):
+Filter tests (Linux/macOS/Windows):
 
 ```bash
 cc -std=c99 -Wall -Wextra -pedantic -Isrc src/debounce.c tests/test_debounce.c -o /tmp/test_debounce && /tmp/test_debounce
 ```
 
-Build no Windows:
+Release build (MinGW-w64, Windows XP and later):
+
+```bash
+cmake -B build -DCMAKE_TOOLCHAIN_FILE=cmake/mingw-i686.cmake -DCMAKE_BUILD_TYPE=Release -DMOUSEFIX_TESTS=OFF && cmake --build build
+```
+
+Visual Studio build (Windows 7 and later), used by CI to keep MSVC working:
 
 ```bash
 cmake -B build && cmake --build build --config Release && ctest --test-dir build -C Release
 ```
 
-Compilação cruzada a partir do Linux sem MinGW instalado, com Zig
-(`pip install ziglang`); troque `x86_64` por `x86` para 32 bits:
+End-to-end testing without Windows: Wine inside a nested X server (Xephyr), a
+helper program that logs `WM_LBUTTONDOWN/UP`, and `xdotool` sending sequences
+such as `mousedown 1 sleep 0.08 mouseup 1 sleep 0.01 mousedown 1`. Always use
+a separate display so the user's real mouse is not moved. Wine can report
+itself as Windows XP (`HKCU\Software\Wine`, value `Version` = `winxp`), but
+it implements every API regardless, so XP compatibility is checked through
+the imports instead (see below).
 
-```bash
-python -m ziglang cc -target x86_64-windows-gnu -O2 -s -Wall -Wextra -DUNICODE -D_UNICODE -DWIN32_LEAN_AND_MEAN -Isrc src/main.c src/settings.c src/debounce.c res/mousefix.rc -o MouseFix.exe -Wl,--subsystem,windows -luser32 -lshell32 -ladvapi32
-```
+## Windows XP compatibility
 
-Teste de ponta a ponta sem Windows: Wine dentro de um X aninhado (Xephyr), um
-programa auxiliar que registra `WM_LBUTTONDOWN/UP` e `xdotool` enviando
-sequências como `mousedown 1 sleep 0.08 mouseup 1 sleep 0.01 mousedown 1`.
-Use sempre um display separado para não mover o mouse real do usuário. Esses
-scripts não fazem parte do repositório.
+- Only call functions that exist on Windows XP. Anything newer must be loaded
+  with `GetProcAddress` and have a fallback.
+- `NOTIFYICONDATAW` is sized at run time (`init_tray_data`): XP rejects the
+  Vista-sized structure. Vista-only fields are set only when
+  `g_vista_or_later` is true.
+- The release build must import only `ADVAPI32`, `KERNEL32`, `msvcrt`,
+  `SHELL32` and `USER32`, with OS/subsystem version 5.1 in the PE header. CI
+  fails otherwise; after adding a Win32 call, check it exists on XP.
 
-## Publicar uma versão
+## Releasing
 
-Atualize a versão nos três arquivos acima e crie uma tag `vX.Y.Z`. A
-workflow `.github/workflows/build.yml` compila x86 e x64, roda os testes e,
-em tags, publica uma release com **um único `MouseFix.exe` (32 bits)**, que
-roda em qualquer Windows, com o texto de `.github/release-notes.md` e o
-SHA-256. Não publicar mais de um `.exe`: o público é leigo e não deve
-precisar escolher.
+Update the version in the three files above and push a `vX.Y.Z` tag.
+`.github/workflows/build.yml` builds with MinGW and MSVC, runs the tests and
+the XP check, and on tags publishes a release with **a single `MouseFix.exe`
+(32-bit MinGW build)**, the text of `.github/release-notes.md` and its
+SHA-256. Never publish more than one `.exe`: users are non-technical and
+should not have to choose. Release notes are in English followed by a
+Portuguese translation.
 
-## Regras do projeto
+## Project rules
 
-- Zero dependências além da API do Windows; um único `.exe`, sem DLL.
-- Nunca pedir administrador nem acessar rede ou arquivos.
-- Eventos com `LLMHF_INJECTED` nunca são filtrados.
-- O hook precisa ser rápido (o Windows remove hooks lentos): nada de E/S,
-  alocação ou chamadas bloqueantes dentro de `mouse_hook`.
-- Ao pausar, trocar configuração ou sair, chamar `release_pending()` para não
-  deixar um botão "preso" no modo seguro para arrastar.
-- Experiência para leigos: sem janela, então toda abertura manual mostra uma
-  notificação dizendo onde está o ícone; a primeira execução pergunta sobre o
-  início automático; abrir uma segunda vez avisa a instância existente em vez
-  de mostrar erro. Início automático passa `/autostart` e fica silencioso.
-- Interface, comentários e documentação em português do Brasil. Fontes em
-  UTF-8 (o CMake passa `/utf-8` ao MSVC); o `.rc` deve permanecer ASCII.
-- C99, estilo do código existente: 4 espaços, chaves de função na linha
-  seguinte, prefixo `db_` no filtro e `g_` em globais.
+- No dependencies beyond the Windows API; a single `.exe`, no DLL.
+- Never ask for administrator rights or touch the network or files.
+- Events flagged `LLMHF_INJECTED` are never filtered.
+- The hook must be fast (Windows removes slow hooks): no I/O, allocation or
+  blocking calls inside `mouse_hook`.
+- When pausing, changing settings or exiting, call `release_pending()` so no
+  button stays stuck in drag-safe mode.
+- Non-technical users: there is no window, so every manual launch shows a
+  notification saying where the icon is; the first run asks about starting
+  with Windows; launching a second time notifies the running instance instead
+  of showing an error. Start with Windows passes `/autostart` and stays
+  silent.
+- Code, comments, documentation and commit messages in English. Sources are
+  UTF-8 (CMake passes `/utf-8` to MSVC); the `.rc` file must stay ASCII.
+- C99, matching the existing style: 4 spaces, function braces on their own
+  line, `db_` prefix in the filter and `g_` for globals.
 
-## Fora do repositório
+## Outside the repository
 
-O script que gera os ícones (Python + Pillow) e os scripts de teste no Wine
-ficam em `../MouseFix-extras/`, fora do repositório.
+The icon generator (Python + Pillow) and the Wine test scripts live in
+`../MouseFix-extras/`, outside the repository.
 
-Os binários originais (`MouseFix.exe`, `MouseFixDll.dll`) e os dumps de
-desmontagem ficam fora desta pasta e **nunca** devem ser adicionados ao
-repositório (licença desconhecida).
+The original binaries (`MouseFix.exe`, `MouseFixDll.dll`) and their
+disassembly dumps are kept outside this folder and must **never** be added to
+the repository (unknown license).
