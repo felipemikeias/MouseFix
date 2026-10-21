@@ -1,6 +1,6 @@
 <p align="center"><img src="docs/icon.png" width="96" alt=""></p>
 
-<h1 align="center">MouseFix</h1>
+<h1 align="center">MouseFix - Open-Source Double Click Fix</h1>
 
 <p align="center">
   <a href="../../releases/latest"><b>⬇ Download MouseFix.exe</b></a>
